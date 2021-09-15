@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0 shrink-to-fit=no">
+    <title>base</title>
+    <link rel="stylesheet" href="base.css">
+    <script src="./base.js"></script>
+</head>
+<body>
+    <style type="text/css">
+        .main{
+            min-height: 100vh;
+            max-height: 100vh;
+        }   
+    </style>
+    <!-- HEADER -->
+    {% include 'snippets/header.html' %}
+    <!-- BODY-->
+    <div class="main">
+        {% block content %}
+        {% endblock content %}
+    </div>
+    <!-- FOOTER -->
+    {% include 'snippets/footer.html' %}
+</body>
+</html>
