@@ -2,7 +2,7 @@
 
 - Is a web application for users who are night people, people who has insomnia, gamers, or if your just looking to chat in another experimental social media experience.
 
-- This project is an experiment for me to learn Django Channels, Websockets and learn more about Django/Python.
+- This project is an experiment for me to learn how to upload an image, Django Channels, Websockets and learn more about Django/Python.
 
 ### Runing Features 
 
@@ -13,6 +13,10 @@
 - User's can Login in their Account and see their profile.
 
 - Users can reset their password (development style)
+
+- Users can update their password, and or profile info on their profile page 
+
+- Users can search for other Users 
 
 
 ###### Technologies 
