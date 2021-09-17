@@ -25,7 +25,17 @@ SECRET_KEY = 'django-insecure-_#)1l%js$5^kureih1t8@s@ae8^)nctj_5hia-pyldfs^ow0nf
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
+if DEBUG:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend' #development only 
+
 ALLOWED_HOSTS = []
+
+AUTH_USER_MODEL = "account.Account"
+
+AUTHENTICATION_BACKENDS = (
+    'django.contrib.auth.backends.AllowAllUsersModelBackend',
+    'account.backends.CaseInsensitiveModelBackend'
+)
 
 
 # Application definition
@@ -33,6 +43,7 @@ ALLOWED_HOSTS = []
 INSTALLED_APPS = [
     # my apps
     'personal',
+    'account',
     'chat',
 
     # third party aps
@@ -140,7 +151,20 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.2/howto/static-files/
 
+STATICFILES_DIRS =[
+    os.path.join(BASE_DIR, 'static'),
+    os.path.join(BASE_DIR, 'media')
+]
+
 STATIC_URL = '/static/'
+MEDIA_URL = '/media/'
+
+STATIC_ROOT = os.path.join(BASE_DIR, 'static_cdn')
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media_cdn')
+
+TEMP = os.path.join(BASE_DIR, 'media_cdn/temp')
+
+BASE_URL= "htttp://127.0.0.1:8000"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field
