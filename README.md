@@ -15,3 +15,12 @@
 - Users can reset their password (development style)
 
 
+###### Technologies 
+
+1. Python
+2. Django
+3. HTML/CSS 
+4. Javascript 
+5. Bootstrap
+6. Pillow
+
