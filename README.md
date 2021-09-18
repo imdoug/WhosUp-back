@@ -27,4 +27,6 @@
 4. Javascript 
 5. Bootstrap
 6. Pillow
+7. cropperjs
+8. python opencv
 

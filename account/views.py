@@ -1,11 +1,23 @@
+from django.core.files import storage
 from django.shortcuts import render, redirect
 from django.http import HttpResponse
 from django.contrib.auth import login, authenticate , logout
 from django.conf import settings
+from django.core.files.storage import default_storage
+from django.core.files.storage import FileSystemStorage
+import os
+import cv2
+import json
+import base64
+# import requests
+from django.core import files
+
 
 
 from account.forms import RegistrationForm, AccountAuthenticationForm, AccountUpdateForm
 from account.models import Account
+
+TEMP_PROFILE_IMAGE_NAME = "temp_profile_image.png"
 
 # Create your views here.
 
@@ -169,3 +181,41 @@ def edit_account_view(request, *args, **kwargs):
 		context['form'] = form
 	context['DATA_UPLOAD_MAX_MEMORY_SIZE'] = settings.DATA_UPLOAD_MAX_MEMORY_SIZE
 	return render(request, "account/edit_account.html", context)
+
+def save_temp_profile_image_from_base64string(imageString, user):
+	INCORRECT_PADDING_EXCEPTION = "incorrect padding"
+	try:
+		if not os.path.exists(settings.TEMP):
+			os.mkdir(settings.TEMP)
+		if not os.path.exists(f"{settings.TEMP}/ {str(user.pk)}"):
+			os.mkdir(f"{settings.TEMP}/{str(user.pk)}")
+		url = os.path.join(f"{settings.TEMP}/{str(user.pk)}", TEMP_PROFILE_IMAGE_NAME)
+		storage = FileSystemStorage(location=url)
+		image = base64.b64decode(imageString)
+		with storage.open("", "wb+") as destination:
+			destination.write(image)
+			destination.close()
+		return url 
+	except Exception as e:
+		if str(e) == INCORRECT_PADDING_EXCEPTION:
+			imageString += "=" * ((4 - len(imageString) % 4) % 4)
+			return save_temp_profile_image_from_base64string
+	return None
+
+
+def crop_image(request, *args, **kwargs):
+	payload = {}
+	user = request.user
+	if request.POST and user.is_authenticated:
+		try:
+			imageString = request.POST.get("image")
+			url = save_temp_profile_image_from_base64string(imageString, user)
+			img = cv2.imread(url)
+
+			cropX = int(float(str(request.POST.get("cropX"))))
+			cropY = int(float(str(request.POST.get("cropY"))))
+			cropWidth = int(float(str(request.POST.get("cropWidth"))))
+			cropHeight = int(float(str(request.POST.get("cropHeight"))))
+
+		except Exception as e:
+			raise e
