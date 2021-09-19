@@ -14,7 +14,7 @@
 
 - Users can reset their password (development style)
 
-- Users can update their password, and or profile info on their profile page 
+- Users can update their password, and or profile info on their profile page and change their profile image
 
 - Users can search for other Users 
 

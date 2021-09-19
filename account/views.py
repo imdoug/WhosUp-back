@@ -1,8 +1,8 @@
-from django.core.files import storage
 from django.shortcuts import render, redirect
 from django.http import HttpResponse
-from django.contrib.auth import login, authenticate , logout
+from django.contrib.auth import login, authenticate, logout
 from django.conf import settings
+
 from django.core.files.storage import default_storage
 from django.core.files.storage import FileSystemStorage
 import os
@@ -13,13 +13,28 @@ import base64
 from django.core import files
 
 
-
 from account.forms import RegistrationForm, AccountAuthenticationForm, AccountUpdateForm
 from account.models import Account
 
+
 TEMP_PROFILE_IMAGE_NAME = "temp_profile_image.png"
 
-# Create your views here.
+# This is basically almost exactly the same as friends/friend_list_view
+def account_search_view(request, *args, **kwargs):
+	context = {}
+	if request.method == "GET":
+		search_query = request.GET.get("q")
+		if len(search_query) > 0:
+			search_results = Account.objects.filter(email__icontains=search_query).filter(username__icontains=search_query).distinct()
+			user = request.user
+			accounts = [] # [(account1, True), (account2, False), ...]
+			for account in search_results:
+				accounts.append((account, False)) # you have no friends yet
+			context['accounts'] = accounts
+				
+	return render(request, "account/search_results.html", context)
+
+
 
 def register_view(request, *args, **kwargs):
 	user = request.user
@@ -35,8 +50,8 @@ def register_view(request, *args, **kwargs):
 			raw_password = form.cleaned_data.get('password1')
 			account = authenticate(email=email, password=raw_password)
 			login(request, account)
-			destination = get_redirect_if_exists(request)
-			if destination: #destination != none
+			destination = kwargs.get("next")
+			if destination:
 				return redirect(destination)
 			return redirect('home')
 		else:
@@ -46,6 +61,7 @@ def register_view(request, *args, **kwargs):
 		form = RegistrationForm()
 		context['registration_form'] = form
 	return render(request, 'account/register.html', context)
+
 
 def logout_view(request):
 	logout(request)
@@ -90,6 +106,9 @@ def get_redirect_if_exists(request):
 			redirect = str(request.GET.get("next"))
 	return redirect
 
+
+
+
 def account_view(request, *args, **kwargs):
 	"""
 	- Logic here is kind of tricky
@@ -127,19 +146,69 @@ def account_view(request, *args, **kwargs):
 		context['BASE_URL'] = settings.BASE_URL
 		return render(request, "account/profile.html", context)
 
-def account_search_view(request, *args, **kwargs):
-	context = {}
-	if request.method == "GET":
-		search_query = request.GET.get("q")
-		if len(search_query) > 0:
-			search_results = Account.objects.filter(email__icontains=search_query).filter(username__icontains=search_query).distinct()
-			user = request.user
-			accounts = [] # [(account1, True), (account2, False), ...]
-			for account in search_results:
-				accounts.append((account, False)) # you have no friends yet
-			context['accounts'] = accounts
-				
-	return render(request, "account/search_result.html", context)
+def save_temp_profile_image_from_base64String(imageString, user):
+	INCORRECT_PADDING_EXCEPTION = "Incorrect padding"
+	try:
+		if not os.path.exists(settings.TEMP):
+			os.mkdir(settings.TEMP)
+		if not os.path.exists(settings.TEMP + "/" + str(user.pk)):
+			os.mkdir(settings.TEMP + "/" + str(user.pk))
+		url = os.path.join(settings.TEMP + "/" + str(user.pk),TEMP_PROFILE_IMAGE_NAME)
+		storage = FileSystemStorage(location=url)
+		image = base64.b64decode(imageString)
+		with storage.open('', 'wb+') as destination:
+			destination.write(image)
+			destination.close()
+		return url
+	except Exception as e:
+		print("exception: " + str(e))
+		# workaround for an issue I found
+		if str(e) == INCORRECT_PADDING_EXCEPTION:
+			imageString += "=" * ((4 - len(imageString) % 4) % 4)
+			return save_temp_profile_image_from_base64String(imageString, user)
+	return None
+
+
+def crop_image(request, *args, **kwargs):
+	payload = {}
+	user = request.user
+	if request.POST and user.is_authenticated:
+		try:
+			imageString = request.POST.get("image")
+			url = save_temp_profile_image_from_base64String(imageString, user)
+			img = cv2.imread(url)
+
+			cropX = int(float(str(request.POST.get("cropX"))))
+			cropY = int(float(str(request.POST.get("cropY"))))
+			cropWidth = int(float(str(request.POST.get("cropWidth"))))
+			cropHeight = int(float(str(request.POST.get("cropHeight"))))
+			if cropX < 0:
+				cropX = 0
+			if cropY < 0: # There is a bug with cropperjs. y can be negative.
+				cropY = 0
+			crop_img = img[cropY:cropY+cropHeight, cropX:cropX+cropWidth]
+
+			cv2.imwrite(url, crop_img)
+
+			# delete the old image
+			# user.profile_image.delete()
+
+			# Save the cropped image to user model
+			user.profile_image.save("profile_image.png", files.File(open(url, 'rb')))
+			user.save()
+
+			payload['result'] = "success"
+			payload['cropped_profile_image'] = user.profile_image.url
+
+			# delete temp file
+			os.remove(url)
+			
+		except Exception as e:
+			print("exception: " + str(e))
+			payload['result'] = "error"
+			payload['exception'] = str(e)
+	return HttpResponse(json.dumps(payload), content_type="application/json")
+
 
 def edit_account_view(request, *args, **kwargs):
 	if not request.user.is_authenticated:
@@ -152,12 +221,9 @@ def edit_account_view(request, *args, **kwargs):
 	if request.POST:
 		form = AccountUpdateForm(request.POST, request.FILES, instance=request.user)
 		if form.is_valid():
-			# delete the old profile image so the name is preserved.
-			account.profile_image.delete()
 			form.save()
 			return redirect("account:view", user_id=account.pk)
 		else:
-			# if user doesnt change a field it will keep the previus information
 			form = AccountUpdateForm(request.POST, instance=request.user,
 				initial={
 					"id": account.pk,
@@ -182,40 +248,9 @@ def edit_account_view(request, *args, **kwargs):
 	context['DATA_UPLOAD_MAX_MEMORY_SIZE'] = settings.DATA_UPLOAD_MAX_MEMORY_SIZE
 	return render(request, "account/edit_account.html", context)
 
-def save_temp_profile_image_from_base64string(imageString, user):
-	INCORRECT_PADDING_EXCEPTION = "incorrect padding"
-	try:
-		if not os.path.exists(settings.TEMP):
-			os.mkdir(settings.TEMP)
-		if not os.path.exists(f"{settings.TEMP}/ {str(user.pk)}"):
-			os.mkdir(f"{settings.TEMP}/{str(user.pk)}")
-		url = os.path.join(f"{settings.TEMP}/{str(user.pk)}", TEMP_PROFILE_IMAGE_NAME)
-		storage = FileSystemStorage(location=url)
-		image = base64.b64decode(imageString)
-		with storage.open("", "wb+") as destination:
-			destination.write(image)
-			destination.close()
-		return url 
-	except Exception as e:
-		if str(e) == INCORRECT_PADDING_EXCEPTION:
-			imageString += "=" * ((4 - len(imageString) % 4) % 4)
-			return save_temp_profile_image_from_base64string
-	return None
 
 
-def crop_image(request, *args, **kwargs):
-	payload = {}
-	user = request.user
-	if request.POST and user.is_authenticated:
-		try:
-			imageString = request.POST.get("image")
-			url = save_temp_profile_image_from_base64string(imageString, user)
-			img = cv2.imread(url)
 
-			cropX = int(float(str(request.POST.get("cropX"))))
-			cropY = int(float(str(request.POST.get("cropY"))))
-			cropWidth = int(float(str(request.POST.get("cropWidth"))))
-			cropHeight = int(float(str(request.POST.get("cropHeight"))))
 
-		except Exception as e:
-			raise e
+
+
