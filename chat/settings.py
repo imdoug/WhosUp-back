@@ -42,6 +42,7 @@ AUTHENTICATION_BACKENDS = (
 
 INSTALLED_APPS = [
     # my apps
+    'friend',
     'personal',
     'account',
     'chat',
